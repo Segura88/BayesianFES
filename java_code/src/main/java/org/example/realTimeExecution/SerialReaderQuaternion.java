@@ -10,12 +10,21 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
 
+/**
+ * Hilo de lectura que captura cuaterniones de un sensor IMU a través de un puerto serie.
+ * Además permite calcular medias y guardar las muestras en diferentes formatos.
+ */
 public class SerialReaderQuaternion implements Runnable{
     private SerialPort serialPort;
     private String portName;
     private List<Quaternion> data;
     private Quaternion meanQuaternion;
 
+    /**
+     * Construye un lector asociado a un puerto serie concreto y configura los parámetros básicos.
+     *
+     * @param portName nombre del puerto (por ejemplo, {@code COM10}).
+     */
     public SerialReaderQuaternion(String portName) {
         this.portName = portName;
         this.serialPort = SerialPort.getCommPort(portName);
@@ -25,6 +34,11 @@ public class SerialReaderQuaternion implements Runnable{
         this.meanQuaternion = new Quaternion();
     }
 
+    /**
+     * Abre el puerto serie configurado para poder iniciar la lectura.
+     *
+     * @return {@code true} si el puerto se abre correctamente.
+     */
     public boolean openPort() {
         if (serialPort.openPort()) {
             System.out.println("Conectado al puerto: " + serialPort.getSystemPortName());
@@ -35,6 +49,11 @@ public class SerialReaderQuaternion implements Runnable{
         }
     }
 
+    /**
+     * Lee datos en formato de cuaternión durante un tiempo determinado y los almacena en memoria.
+     *
+     * @param durationMillis duración de la captura en milisegundos.
+     */
     public void readData(long durationMillis) {
         long startTime = System.currentTimeMillis();  // Inicio del temporizador
 
@@ -75,6 +94,9 @@ public class SerialReaderQuaternion implements Runnable{
 
 
 
+    /**
+     * Calcula el cuaternión medio de todas las muestras recibidas y lo almacena internamente.
+     */
     public void calculateMeanQuaternion() {
         int size = data.size();
         System.out.println("Number of samples recieved from  port "+ serialPort.getSystemPortName() + ": " + data.size());
@@ -100,6 +122,18 @@ public class SerialReaderQuaternion implements Runnable{
             meanQuaternion.setZ(sum[3] / data.size());
         }
     }
+    /**
+     * Guarda en un archivo de texto los datos completos obtenidos de los sensores y, si se
+     * proporcionan, los ángulos de interés calculados a partir de las medias.
+     *
+     * @param fileName     ruta del archivo de salida.
+     * @param handReader   lector asociado al sensor de la mano.
+     * @param armReader    lector asociado al sensor del brazo.
+     * @param handMean     cuaternión medio de la mano.
+     * @param armMean      cuaternión medio del brazo.
+     * @param eulerAngle   ángulos de rotación mano-brazo (opcional).
+     * @param pronSupAngle ángulos de pronación/supinación del brazo (opcional).
+     */
     public static void saveData(String fileName, SerialReaderQuaternion handReader, SerialReaderQuaternion armReader, Quaternion handMean, Quaternion armMean, Coord eulerAngle, Coord pronSupAngle) {
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(fileName))) {
 
@@ -149,6 +183,13 @@ public class SerialReaderQuaternion implements Runnable{
         }
     }
 
+    /**
+     * Exporta las muestras de ambos sensores en un formato CSV simplificado para graficar.
+     *
+     * @param simpleFileName ruta del archivo CSV a generar.
+     * @param handReader     lector asociado al sensor de la mano.
+     * @param armReader      lector asociado al sensor del brazo.
+     */
     public static void saveDataToPlot(String simpleFileName, SerialReaderQuaternion handReader, SerialReaderQuaternion armReader) {
         try (BufferedWriter simpleWriter = new BufferedWriter(new FileWriter(simpleFileName))) {
 
@@ -163,6 +204,9 @@ public class SerialReaderQuaternion implements Runnable{
         }
     }
 
+    /**
+     * Escribe línea a línea las muestras de ambos sensores sincronizadas para facilitar su trazado.
+     */
     private static void saveSimplifiedSampleData(BufferedWriter br, SerialReaderQuaternion handReader, SerialReaderQuaternion armReader) throws IOException {
         long startTime = System.currentTimeMillis();  // Marca de tiempo de inicio
 
@@ -192,10 +236,16 @@ public class SerialReaderQuaternion implements Runnable{
 
     
 
+    /**
+     * Devuelve todas las muestras capturadas hasta el momento.
+     */
     public List<Quaternion> getData() {
         return data;
     }
 
+    /**
+     * Obtiene el cuaternión medio calculado.
+     */
     public Quaternion getMeanQuartenion() {
         return meanQuaternion;
     }
@@ -211,6 +261,9 @@ public class SerialReaderQuaternion implements Runnable{
 
     }
 
+    /**
+     * Cierra el puerto serie si estaba abierto.
+     */
     public void closePort() {
         if (serialPort.isOpen()) {
             serialPort.closePort();
@@ -218,6 +271,9 @@ public class SerialReaderQuaternion implements Runnable{
         }
     }
 
+    /**
+     * Limpia las muestras almacenadas y reinicia el cuaternión medio.
+     */
     public void clearData() {
         data.clear();  // Limpiar la lista de datos recibidos
         meanQuaternion = new Quaternion();  // Restablecer la media de los ángulos a 0

@@ -5,16 +5,31 @@ import com.fazecast.jSerialComm.SerialPort;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
+/**
+ * Gestiona la comunicación serie con el dispositivo de estimulación funcional (FES).
+ * Permite abrir la conexión, enviar comandos de configuración y controlar el inicio o
+ * parada de la estimulación sobre distintos canales.
+ */
 public class FESController {
     private SerialPort serialPort;
     private String portName;
     private static final int BAUD_RATE = 9600;
 
+    /**
+     * Crea un controlador asociado a un nombre de puerto.
+     *
+     * @param portName identificador del puerto serie donde está conectado el FES
+     */
     public FESController(String portName) {
 
         this.portName = portName;
     }
 
+    /**
+     * Abre el puerto configurando los parámetros de comunicación.
+     *
+     * @return {@code true} si el puerto se abre correctamente; {@code false} en caso contrario.
+     */
     public boolean connect() {
         serialPort = SerialPort.getCommPort(portName);
         serialPort.setBaudRate(BAUD_RATE); //velocidad de transmisionde bits
@@ -32,6 +47,9 @@ public class FESController {
     }
 
 
+    /**
+     * Enciende la fuente de alimentación número 2 del dispositivo FES.
+     */
     public void powerOn() {
         String command = "on2\r"; //escribe en el dispostivo, refiriendose a la fuente de alimentacion 2, y la activa
 
@@ -44,6 +62,9 @@ public class FESController {
         System.out.println("Fuente de alimentación encendida");
     }
 
+    /**
+     * Apaga la fuente de alimentación número 2 del dispositivo FES.
+     */
     public void powerOff() {
         String command = "off2\r"; //escribe en el dispostivo, refiriendose a la fuente de alimentacion 2, y la desactiva
 
@@ -56,6 +77,9 @@ public class FESController {
         System.out.println("Fuente de alimentación apagada");
     }
 
+    /**
+     * Inicia la estimulación sobre los canales activos de la máscara actual.
+     */
     public void startStimulation() {
         String command = "s\r";
         try {
@@ -66,6 +90,9 @@ public class FESController {
         System.out.println("Estimulación iniciada");
     }
 
+    /**
+     * Detiene la estimulación en curso.
+     */
     public void stopStimulation() {
         String command = "p\r";
         try {
@@ -76,6 +103,9 @@ public class FESController {
         System.out.println("Estimulación detenida");
     }
 
+    /**
+     * Cierra el puerto serie si está abierto.
+     */
     public void disconnect() {
         if (serialPort != null && serialPort.isOpen()) {
             serialPort.closePort();
@@ -83,6 +113,12 @@ public class FESController {
         }
     }
 
+    /**
+     * Envía al FES la máscara de canales a activar.
+     *
+     * @param mask matriz de 32x2 donde {@code mask[j][0]} indica si el canal está activo y
+     *             {@code mask[j][1]} el índice con el que se envía al dispositivo.
+     */
     public void setMask(int[][] mask) {
 
         for (int j = 0; j < mask.length; j++) {
@@ -104,6 +140,12 @@ public class FESController {
 
     }
 
+    /**
+     * Configura la frecuencia global de estimulación.
+     *
+     * @param frequency frecuencia en Hz.
+     * @throws IllegalArgumentException si la frecuencia no es positiva.
+     */
     public void setFrequency(double frequency) {
         if (frequency <= 0) {
             throw new IllegalArgumentException("La frecuencia debe ser mayor que 0");
@@ -120,6 +162,13 @@ public class FESController {
         }
     }
 
+    /**
+     * Configura el ancho de pulso positivo para un canal específico.
+     *
+     * @param channel    número de canal dirigido.
+     * @param pulseWidth ancho de pulso en microsegundos.
+     * @throws IllegalArgumentException si el ancho de pulso es inferior al mínimo admitido.
+     */
     public void setPulseWidth(int channel, double pulseWidth) {
         // Convierte el ancho de pulso (mínimo 27.6 ms, paso de 2.4 ms)
         int pulseValue = (int) ((pulseWidth - 27.6) / 2.4);
@@ -138,6 +187,13 @@ public class FESController {
         }
     }
 
+    /**
+     * Configura la corriente positiva para un canal específico.
+     *
+     * @param channel   número de canal dirigido.
+     * @param amplitude amplitud en miliamperios.
+     * @throws IllegalArgumentException si la amplitud es negativa.
+     */
     public void setCurrent(int channel, double amplitude) {
         // Convierte la amplitud (paso de 0.78 mA)
         int currentValue = (int) (amplitude / 0.78);
@@ -156,6 +212,12 @@ public class FESController {
         }
     }
 
+    /**
+     * Envía un comando textual al FES y muestra la respuesta devuelta por el dispositivo.
+     *
+     * @param command comando terminado en retorno de carro según el protocolo del FES.
+     * @throws IOException si ocurre un problema al escribir por el puerto serie.
+     */
     private void sendCommand(String command) throws IOException {
         serialPort.writeBytes(command.getBytes(), command.length()); //convierte el comando en un array de bits y lo envia por el puerto serie, indica la cantidad de bytes a enviar
         try {
