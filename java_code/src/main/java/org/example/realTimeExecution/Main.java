@@ -6,7 +6,15 @@ import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
 
+/**
+ * Ejecuta el flujo completo de calibración y estimulación en tiempo real:
+ * abre los puertos de los sensores y del estimulador, registra las orientaciones
+ * iniciales, activa cada canal y guarda las mediciones antes y durante la estimulación.
+ */
 public class Main {
+    /**
+     * Punto de entrada de la aplicación de ejecución en tiempo real.
+     */
     public static void main(String[] args) {
 
         SerialReaderQuaternion handReader = new SerialReaderQuaternion("COM10");
@@ -200,6 +208,9 @@ public class Main {
         }
     }
 
+    /**
+     * Guarda en un archivo de texto las muestras completas y los ángulos medios de mano y brazo.
+     */
     public static void saveData(String fileName, SerialReaderQuaternion handReader, SerialReaderQuaternion armReader, Quaternion handMean, Quaternion armMean, Coord handMeanEuler, Coord armMeanEuler, Coord rotationAngle, Coord pronSupAngle) {
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(fileName))) {
             if(rotationAngle != null && pronSupAngle != null){
@@ -239,6 +250,9 @@ public class Main {
         }
     }
 
+    /**
+     * Exporta datos de ambas IMU en un CSV con columnas listas para graficar roll, pitch y yaw.
+     */
     public static void saveDataToPlot(String simpleFileName, SerialReaderQuaternion handReader, SerialReaderQuaternion armReader) {
         try (BufferedWriter simpleWriter = new BufferedWriter(new FileWriter(simpleFileName))) {
 
@@ -253,6 +267,9 @@ public class Main {
         }
     }
 
+    /**
+     * Escribe en el {@link BufferedWriter} una fila por muestra sincronizando mano y brazo.
+     */
     private static void saveSimplifiedSampleData(BufferedWriter br, SerialReaderQuaternion handReader, SerialReaderQuaternion armReader) throws IOException {
         long startTime = System.currentTimeMillis();  // Marca de tiempo de inicio
 
@@ -278,6 +295,13 @@ public class Main {
                     time, handEuler.getX(), handEuler.getY(), handEuler.getZ(), armEuler.getX(), armEuler.getY(), armEuler.getZ()));
         }
     }
+    /**
+     * Calcula la rotación relativa entre una medida y su referencia global.
+     *
+     * @param Qglobal cuaternión de referencia.
+     * @param Qmean   cuaternión medido.
+     * @return rotación relativa {@code Qmean * inverse(Qglobal)}.
+     */
     public static Quaternion calculateRotation(Quaternion Qglobal, Quaternion Qmean) {
         return Qmean.multiplication((Qglobal.inversion()));
 
