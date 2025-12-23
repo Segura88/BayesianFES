@@ -1,5 +1,6 @@
 package org.example.simulation;
 
+import org.example.config.GridConfig;
 
 //Atributos y métodos relacionados a un pad individual
 public class Pad {
@@ -13,9 +14,13 @@ public class Pad {
 
 
     public Pad(int id, double radiusFromAxis) {
+        this(id, radiusFromAxis, GridConfig.defaultConfig());
+    }
+
+    public Pad(int id, double radiusFromAxis, GridConfig gridConfig) {
         this.id = id;
-        this.col = (id - 1)/5;
-        this.row = (id - 1)%5;
+        this.col = (id - 1) / gridConfig.getRows();
+        this.row = (id - 1) % gridConfig.getRows();
         this.radiusFromAxis = radiusFromAxis;
         this.displacementDistance = 0;
         this.probability = 0;
@@ -62,9 +67,10 @@ public class Pad {
         System.out.println("Pad ID | Row | Distance to Radius (cm)");
         System.out.println("-------------------------------------");
 
-        for (int id = 1; id <= 15; id++) {
-            Pad pad = new Pad(id,2.86);
-            int row = (id - 1) % 5;
+        GridConfig gridConfig = GridConfig.defaultConfig();
+        for (int id = 1; id <= gridConfig.getPadCount(); id++) {
+            Pad pad = new Pad(id,2.86, gridConfig);
+            int row = (id - 1) % gridConfig.getRows();
             System.out.printf("  %2d   |  %d  |        %.2f cm\n", pad.getId(), row, pad.getRadiusFromAxis());
         }
     }
