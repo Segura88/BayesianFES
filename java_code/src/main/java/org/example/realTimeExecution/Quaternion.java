@@ -1,5 +1,10 @@
 package org.example.realTimeExecution;
 
+/**
+ * Representa un cuaternión y ofrece operaciones básicas para combinar orientaciones
+ * o convertirlas a ángulos de Euler. Las operaciones retornan nuevas instancias
+ * y no modifican el objeto original.
+ */
 public class Quaternion {
 
     // q = w + xi + yi + zi
@@ -11,6 +16,9 @@ public class Quaternion {
     public Quaternion() {
     }
 
+    /**
+     * Crea un nuevo cuaternión con los componentes indicados.
+     */
     public Quaternion(double w, double x, double y, double z) {
         this.w = w;
         this.x = x;
@@ -18,8 +26,12 @@ public class Quaternion {
         this.z = z;
     }
 
-    // q = q1 * q2
-
+    /**
+     * Multiplica el cuaternión actual por otro cuaternión.
+     *
+     * @param q cuaternión a aplicar.
+     * @return resultado de la multiplicación {@code this * q}.
+     */
     public Quaternion multiplication(Quaternion q){
         // w = w1*w2 - x1*x2 - y1*y2 - z1*z2
         double newW = this.w * q.w - this.x * q.x - this.y * q.y - this.z * q.z;
@@ -35,12 +47,22 @@ public class Quaternion {
     //q^-1 = q* / |q^2|
     // q* = (w, -x, -y, -z)
     // |q^2| = w^2 + x^2 + y^2 + z^2
+    /**
+     * Calcula el inverso del cuaternión actual.
+     *
+     * @return cuaternión invertido.
+     */
     public Quaternion inversion(){
         double Squared = w * w + x * x + y * y + z * z;
         return new Quaternion(w/Squared, -x/Squared, -y/Squared, -z/Squared);
 
     }
 
+    /**
+     * Convierte el cuaternión en ángulos de Euler expresados en grados (roll,
+     * pitch, yaw) utilizando la convención de rotaciones aplicada en el resto
+     * del sistema.
+     */
     public Coord toEulerAngles(){
         double roll, pitch, yaw;
         Coord c = new Coord();

@@ -1,17 +1,35 @@
 package org.example.realTimeExecution;
 
 import org.example.auxiliar.Utilities;
+import org.example.config.RuntimeConfig;
 
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
 
+/**
+ * Ejecuta el flujo completo de calibración y estimulación en tiempo real:
+ * abre los puertos de los sensores y del estimulador, registra las orientaciones
+ * iniciales, activa cada canal y guarda las mediciones antes y durante la estimulación.
+ * Mantiene el mismo orden de operaciones y tiempos de espera definidos en la
+ * implementación original.
+ *
+ * Precondiciones operativas:
+ * <ul>
+ *     <li>Los puertos definidos en {@link RuntimeConfig} deben existir y estar libres.</li>
+ *     <li>El usuario proporciona por consola frecuencia, ancho de pulso e intensidad válidos.</li>
+ * </ul>
+ */
 public class Main {
+    /**
+     * Punto de entrada de la aplicación de ejecución en tiempo real.
+     */
     public static void main(String[] args) {
+        RuntimeConfig runtimeConfig = RuntimeConfig.defaultConfig();
 
-        SerialReaderQuaternion handReader = new SerialReaderQuaternion("COM10");
-        SerialReaderQuaternion armReader = new SerialReaderQuaternion("COM13");
-        FESController fesController = new FESController("COM14");
+        SerialReaderQuaternion handReader = new SerialReaderQuaternion(runtimeConfig.getHandImuPort());
+        SerialReaderQuaternion armReader = new SerialReaderQuaternion(runtimeConfig.getArmImuPort());
+        FESController fesController = new FESController(runtimeConfig.getFesPort());
 
         System.out.println("Configuración parametros de la estimulación \n");
         double frequency = Utilities.readDouble("Establezca la frecuencia: ");
@@ -20,7 +38,7 @@ public class Main {
 
         if (handReader.openPort() && armReader.openPort() && fesController.connect()) {
 
-            for(int channel = 16; channel <= 32; channel++) {
+            for(int channel = runtimeConfig.getChannelPulseStart(); channel <= runtimeConfig.getChannelPulseEnd(); channel++) {
                 fesController.setPulseWidth(channel, pulseWidth);
                 fesController.setCurrent(channel, amplitude);
             }
@@ -30,7 +48,7 @@ public class Main {
             System.out.println("Encendiendo fuente de alimentacion.......");
             fesController.powerOn();
 
-            for(int i = 15; i < 31; i++) {
+            for(int i = runtimeConfig.getStimulationLoopStartIndex(); i < runtimeConfig.getStimulationLoopEndIndex(); i++) {
 
                 System.out.println("\n----------- Canal " + (i + 1) + " -----------");
 
@@ -74,12 +92,12 @@ public class Main {
                 System.out.println("Mean euler angle for the initial arm position:");
                 System.out.printf("X=%.2f°, Y=%.2f°, Z=%.2f°\n", Qglobal2_euler.getX(), Qglobal2_euler.getY(), Qglobal2_euler.getZ());
 
-                saveData("initialAngles_Channel_" + (i + 1) + ".txt", handReader, armReader, Qglobal1, Qglobal2, Qglobal1_euler, Qglobal2_euler, null, null);
-                saveDataToPlot("C:\\Users\\alemo\\IdeaProjects\\getIMU\\initialAngles_Channel_" + (i + 1) + ".csv", handReader, armReader);
+                saveData(runtimeConfig.getInitialAnglesFilePrefix() + (i + 1) + ".txt", handReader, armReader, Qglobal1, Qglobal2, Qglobal1_euler, Qglobal2_euler, null, null);
+                saveDataToPlot(runtimeConfig.getInitialAnglesPlotPrefix() + (i + 1) + ".csv", handReader, armReader);
 
 
                 //2.Activar canal i
-                int[][] mask = new int[32][2];
+                int[][] mask = new int[runtimeConfig.getMaskLength()][2];
                 for (int j = 0; j < mask.length; j++) {
                     mask[j][0] = 0; //resto de canales a 0
                     mask[j][1] = 0;
@@ -96,7 +114,7 @@ public class Main {
                 fesController.startStimulation();
 
                 try {
-                    Thread.sleep(2000); //esperar un segundo dos segundos de tomar las nuevas mediciones
+                    Thread.sleep(runtimeConfig.getStimulationDelayMillis()); //esperar un segundo dos segundos de tomar las nuevas mediciones
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
@@ -151,7 +169,7 @@ public class Main {
 
                 //7. Esperar 3 segundos
                 try {
-                    Thread.sleep(3000);
+                    Thread.sleep(runtimeConfig.getRestDelayMillis());
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
@@ -163,8 +181,8 @@ public class Main {
 
                 Quaternion Q2_calibrated = calculateRotation(Qglobal2, Q2);
                 Coord pronSupAngles = Q2_calibrated.toEulerAngles();
-                saveData("finalAngles_Channel_" + (i + 1) + ".txt", handReader, armReader, Q1, Q2, Q1_euler,Q2_euler, rotationAngles, pronSupAngles);
-                saveDataToPlot("C:\\Users\\alemo\\IdeaProjects\\getIMU\\finalAngles_Channel_" + (i + 1) + ".csv", handReader, armReader);
+                saveData(runtimeConfig.getFinalAnglesFilePrefix() + (i + 1) + ".txt", handReader, armReader, Q1, Q2, Q1_euler,Q2_euler, rotationAngles, pronSupAngles);
+                saveDataToPlot(runtimeConfig.getFinalAnglesPlotPrefix() + (i + 1) + ".csv", handReader, armReader);
 
 
                 System.out.println("Channel  " + (i + 1) + ":");
@@ -200,6 +218,9 @@ public class Main {
         }
     }
 
+    /**
+     * Guarda en un archivo de texto las muestras completas y los ángulos medios de mano y brazo.
+     */
     public static void saveData(String fileName, SerialReaderQuaternion handReader, SerialReaderQuaternion armReader, Quaternion handMean, Quaternion armMean, Coord handMeanEuler, Coord armMeanEuler, Coord rotationAngle, Coord pronSupAngle) {
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(fileName))) {
             if(rotationAngle != null && pronSupAngle != null){
@@ -239,6 +260,9 @@ public class Main {
         }
     }
 
+    /**
+     * Exporta datos de ambas IMU en un CSV con columnas listas para graficar roll, pitch y yaw.
+     */
     public static void saveDataToPlot(String simpleFileName, SerialReaderQuaternion handReader, SerialReaderQuaternion armReader) {
         try (BufferedWriter simpleWriter = new BufferedWriter(new FileWriter(simpleFileName))) {
 
@@ -253,6 +277,9 @@ public class Main {
         }
     }
 
+    /**
+     * Escribe en el {@link BufferedWriter} una fila por muestra sincronizando mano y brazo.
+     */
     private static void saveSimplifiedSampleData(BufferedWriter br, SerialReaderQuaternion handReader, SerialReaderQuaternion armReader) throws IOException {
         long startTime = System.currentTimeMillis();  // Marca de tiempo de inicio
 
@@ -278,6 +305,13 @@ public class Main {
                     time, handEuler.getX(), handEuler.getY(), handEuler.getZ(), armEuler.getX(), armEuler.getY(), armEuler.getZ()));
         }
     }
+    /**
+     * Calcula la rotación relativa entre una medida y su referencia global.
+     *
+     * @param Qglobal cuaternión de referencia.
+     * @param Qmean   cuaternión medido.
+     * @return rotación relativa {@code Qmean * inverse(Qglobal)}.
+     */
     public static Quaternion calculateRotation(Quaternion Qglobal, Quaternion Qmean) {
         return Qmean.multiplication((Qglobal.inversion()));
 

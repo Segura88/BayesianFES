@@ -1,37 +1,50 @@
 package org.example.simulation;
 
 import org.example.auxiliar.Utilities;
+import org.example.config.GridConfig;
+import org.example.io.ResultWriter;
+import org.example.model.BayesStepResult;
 
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.PrintWriter;
 import java.util.*;
-import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
-//Asigna probabilidades iniciales a los pads, gestiona la actualización del algoritmo
+/**
+ * Runs a Bayesian update over a fixed grid of pads combining displacement and
+ * observation models. The class maintains pad state across steps and exposes
+ * the per-step results required to persist the CSV output without handling IO
+ * directly.
+ */
 public class Simulation {
     private final List<Pad> pads;
+    private final GridConfig gridConfig;
     private final DisplacementModel disModel;
     private final ObservationModel obsModel;
     private final double movementThreshold;
     private final double probMin;
 
-    private static final int NUM_COLS = 3;
-    private static final int NUM_ROWS = 5;
 
-
+    /**
+     * Builds the simulation using the default grid and loads subject-specific
+     * priors and observation tables.
+     *
+     * @param movementThreshold threshold (cm) to determine which pads belong
+     *                          to the displacement region of the moved pad.
+     * @param probMin           minimum probability for a pad to be considered
+     *                          when selecting the top candidates.
+     * @param subject           subject identifier used to load CSV inputs.
+     */
     public Simulation(double movementThreshold, double probMin, String subject) {
+        this.gridConfig = GridConfig.defaultConfig();
         this.disModel = new DisplacementModel();
         this.obsModel = new ObservationModel();
         this.movementThreshold = movementThreshold;
         this.probMin = probMin;
 
         this.pads = new ArrayList<>();
-        for (int id = 1; id <= NUM_COLS * NUM_ROWS; id++) {
-            int padCol = (id - 1) / NUM_ROWS;
+        for (int id = 1; id <= gridConfig.getPadCount(); id++) {
+            int padCol = (id - 1) / gridConfig.getRows();
             double radius = calculateRadius(padCol);
-            pads.add(new Pad(id, radius));
+            pads.add(new Pad(id, radius, gridConfig));
 
         }
         loadInitialProbs(subject);
@@ -39,6 +52,10 @@ public class Simulation {
 
     }
 
+    /**
+     * Computes the radial distance for pads in a column based on the assumed
+     * forearm radius and offset detailed in the original implementation.
+     */
     public double calculateRadius(int col) {
         double forearmCircle = 18.0;
         double radiusCenter = forearmCircle / (2 * Math.PI); //2.86 cm
@@ -53,6 +70,10 @@ public class Simulation {
 
     }
 
+    /**
+     * Loads the initial probabilities for every pad from the subject-specific
+     * CSV and seeds both the initial and current probabilities.
+     */
     public void loadInitialProbs(String subject) {
         String fileName = "initialK_values_" + subject + ".csv";
         List<Double> initialProbs = Utilities.readProbabilities(fileName);
@@ -63,6 +84,16 @@ public class Simulation {
     }
 
 
+    /**
+     * Calculates the set of pads whose centers fall within the movement
+     * threshold of the pad displaced by {@code angleDiff}.
+     *
+     * @param pad               pad used as the displacement origin.
+     * @param angleDiff         angular displacement in degrees.
+     * @param movementThreshold distance (cm) to include neighbors.
+     * @return list of pads within the region; returns the pad itself if none
+     * meet the threshold.
+     */
     public List<Pad> getRegion(Pad pad, double angleDiff, double movementThreshold) {
         double distance = pad.getDisplacementDistance();  // coge la distancia que se ha movido el pad en el que estamos
         double spacing = 1.5; //distancia de centro de un pad al centro de otro (1cm ancho pad + 0.5cm entre pads)
@@ -92,6 +123,13 @@ public class Simulation {
         return region;
     }
 
+    /**
+     * Applies the displacement model to propagate prior probabilities across
+     * the grid after a movement angle.
+     *
+     * @param angleDiff angular displacement in degrees used to update pad
+     *                  displacement distances and redistribute probabilities.
+     */
     public void updateProbsAfterMovement(double angleDiff) {
         int N = pads.size();
 
@@ -139,6 +177,10 @@ public class Simulation {
 
     //Filtra los pads que superen un umbral mínimo de probabilidad
     //Sobre ese conjuento, caclulo el baricentro (centro de masa) y selecciono los N pads más cercanos al centroide
+    /**
+     * Selects the top-N pads whose probability exceeds {@code probMin} and are
+     * closest to the probability-weighted centroid.
+     */
     public List<Pad> selectPads(int topN) {
 
         List<Pad> filteredPads = pads.stream() //inicia flujo
@@ -172,95 +214,49 @@ public class Simulation {
                 .collect(Collectors.toList());
     }
 
-    public void runStep(String subject, double angleDiff) {
+    /**
+     * Executes a full Bayesian step: predicts probabilities using the
+     * displacement model, stores the predicted vector, applies the observation
+     * correction, and returns the data required to persist results.
+     *
+     * Preconditions:
+     * <ul>
+     *     <li>{@link #loadInitialProbs(String)} and {@link ObservationModel#loadkTable(String)} have populated pad priors and Ks.</li>
+     *     <li>{@code angleDiff} represents the current movement between measurements.</li>
+     * </ul>
+     *
+     * @param subject   subject identifier already used to load priors.
+     * @param angleDiff movement angle in degrees for this step.
+     * @return snapshot containing per-pad predicted/corrected probabilities and
+     *         the highest-probability pads.
+     */
+    public SimulationResult runStep(String subject, double angleDiff) {
         int N = pads.size();
-        String s = subject;
-        double[][] resultingMatrix = new double[N][5];
-        //resultingMatrix[i][0] para guardar el pad Id
-        //resultingMatrix[i][1] para guardar desplazamiento
-        //resultingMatrix[i][2] para guardar initial prob
-        //resultingMatrix[i][3] para guardar predicted probs
-        //resultingMatrix[i][4] para guardar corrected probs
-
-        for (Pad pad : pads) {
-            int rowPad = pad.getId() - 1;
-            resultingMatrix[rowPad][0] = pad.getId();
-            resultingMatrix[rowPad][1] = pad.getInitialProb();
-        }
+        Map<Integer, Double> predictedProbs = new HashMap<>();
 
         updateProbsAfterMovement(angleDiff);
-
-        System.out.println("Pad ID | Displacement");
-        System.out.println("----------------------------");
         for (Pad pad : pads) {
-            int rowPad = pad.getId() - 1;
-            resultingMatrix[rowPad][2] = pad.getDisplacementDistance();
-
-            System.out.printf("  %2d   |     %.2f\n", pad.getId(), pad.getDisplacementDistance());
-        }
-
-        System.out.println("Pad ID | Updated Probability after prediction phase");
-        System.out.println("----------------------------");
-        for (Pad pad : pads) {
-            int rowPad = pad.getId() - 1;
-            resultingMatrix[rowPad][3] = pad.getProbability();
-            System.out.printf("  %2d   |     %.8f\n", pad.getId(), pad.getProbability());
+            predictedProbs.put(pad.getId(), pad.getProbability());
         }
 
         obsModel.applyCorrectionPhase(pads, angleDiff);
-        System.out.println("Pad ID | Corrected Probability after correction phase");
-        System.out.println("----------------------------");
+
+        List<BayesStepResult> bayesStepResults = new ArrayList<>(N);
         for (Pad pad : pads) {
-            int rowPad = pad.getId() - 1;
-            resultingMatrix[rowPad][4] = pad.getProbability();
-
-            System.out.printf("  %2d   |     %.8f\n", pad.getId(), pad.getProbability());
+            double predictedProb = predictedProbs.getOrDefault(pad.getId(), 0.0);
+            BayesStepResult resultRow = new BayesStepResult(
+                    pad.getId(),
+                    pad.getInitialProb(),
+                    pad.getDisplacementDistance(),
+                    predictedProb,
+                    pad.getProbability()
+            );
+            bayesStepResults.add(resultRow);
         }
-
 
         List<Pad> top3Pads = selectPads(3);
-        System.out.println("Top 3 pads tras movimiento de: " + angleDiff + "º");
-        for (Pad pad : top3Pads) {
-            System.out.printf("Pad %d → prob=%.4f, disp=%.2fcm\n", pad.getId(), pad.getProbability(), pad.getDisplacementDistance());
-        }
 
-        writeResults(s, angleDiff, resultingMatrix, top3Pads);
-    }
-
-
-    private void writeResults(String subject, double angleDiff, double[][] resultingMatrix, List<Pad> top3Pads){
-        int N = pads.size();
-        String localFilename = String.format(Locale.US, "results_%s_angle_%.1f.csv", subject, angleDiff);
-        String externalPath = "C:\\Users\\alemo\\OneDrive\\Documentos\\CEU SAN PABLO\\QUINTO\\TFG\\Materiales\\Algoritmo";
-        String externalFilename = String.format(Locale.US, "%s\\results_%s_angle_%.1f.csv", externalPath, subject, angleDiff);
-        // Método auxiliar para escribir la matriz en un archivo dado
-
-        BiConsumer<String, String> writeCsv = (filename, header) -> {
-            try (PrintWriter pw = new PrintWriter(new FileWriter(filename))) {
-                pw.println("PadID,InitialProb,Displacement,PredictedProb,CorrectedProb");
-                for (int i = 0; i < N; i++) {
-                    int padId = (int) resultingMatrix[i][0];
-                    double initP = resultingMatrix[i][1];
-                    double disp = resultingMatrix[i][2];
-                    double pPred = resultingMatrix[i][3];
-                    double pPost = resultingMatrix[i][4];
-                    pw.printf(Locale.US, "%d,%.8f,%.8f,%.8f,%.8f%n",
-                            padId, initP, disp, pPred, pPost);
-                }
-                pw.println(); // línea en blanco
-                pw.println("TopPad1,TopPad2,TopPad3");
-                String[] topIds = {"", "", ""};
-                for (int j = 0; j < top3Pads.size() && j < 3; j++) {
-                    topIds[j] = String.valueOf(top3Pads.get(j).getId());
-                }
-                pw.printf("%s,%s,%s%n", topIds[0], topIds[1], topIds[2]);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        };
-
-        writeCsv.accept(localFilename, localFilename);
-        writeCsv.accept(externalFilename, externalFilename);
+        return new SimulationResult(subject, angleDiff, bayesStepResults, top3Pads);
     }
 
     public static void main(String[] args) {
@@ -268,6 +264,7 @@ public class Simulation {
         double movementThreshold = 1;
         double probMin = 0.05;
         double[] angles = {-90.0 ,10.0, 30.0, 45.0, 60.0, 90.0};
+        ResultWriter resultWriter = new ResultWriter();
 
         for (String sub : subjectNames) {
             System.out.println("\n============================================");
@@ -279,7 +276,8 @@ public class Simulation {
             for (double ang : angles) {
                 s.loadInitialProbs(sub);
                 System.out.printf("\n-- %s | Ángulo: %.1f° --\n", sub, ang);
-                s.runStep(sub,ang);
+                SimulationResult result = s.runStep(sub, ang);
+                resultWriter.writeResults(result);
             }
 
         }

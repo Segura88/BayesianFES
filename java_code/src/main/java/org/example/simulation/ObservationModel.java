@@ -4,6 +4,13 @@ import org.example.auxiliar.Utilities;
 
 import java.util.List;
 
+/**
+ * Applies the observation likelihoods read from the subject-specific Ks table
+ * to correct pad probabilities after a movement. The table is expected to have
+ * one row per pad and columns covering angles from {@value #MIN_ANGLE} to
+ * {@value #MAX_ANGLE} in {@value #ANGLE_STEP} degree steps, matching the
+ * structure used by the original MATLAB preprocessing.
+ */
 public class ObservationModel {
     private double[][] kTable;
     private final int nPads;
@@ -20,6 +27,18 @@ public class ObservationModel {
 
     }
 
+    /**
+     * Extracts the Ks column corresponding to the rounded {@code angleDiff}.
+     *
+     * Preconditions:
+     * <ul>
+     *     <li>{@link #loadkTable(String)} has been called to populate the table.</li>
+     *     <li>{@code angleDiff} lies within [{@value #MIN_ANGLE}, {@value #MAX_ANGLE}].</li>
+     * </ul>
+     *
+     * @param angleDiff movement angle in degrees.
+     * @return likelihood values per pad for the requested angle.
+     */
     public double[] getAngleColumn(double angleDiff){ //para un ángulo, extrae los valores de
         if(angleDiff < MIN_ANGLE || angleDiff > MAX_ANGLE){
             System.out.println("ángulo debe estar en el rango de -90 a 90 grados");
@@ -36,6 +55,13 @@ public class ObservationModel {
 
     }
 
+    /**
+     * Applies the observation model: converts Ks to likelihoods, multiplies by
+     * the current prior of each pad, and renormalizes the resulting posterior.
+     *
+     * Side effects: mutates the probability of each pad in {@code pads} in
+     * place to store the corrected posterior distribution.
+     */
     public void applyCorrectionPhase(List<Pad> pads, double angleDiff){
         int n = pads.size();
         double[] Ks = getAngleColumn(angleDiff); //extrae las ks para todos los pads del ángulo que nos inetresa
@@ -73,6 +99,11 @@ public class ObservationModel {
     }
 
 
+    /**
+     * Loads the Ks observation table for the given subject from CSV.
+     * The file must contain the same shape expected by the constructor
+     * (15 pads by 37 angle samples).
+     */
     public void loadkTable(String subject) {
         String fileName = "Kstable_" + subject + ".csv";
         double[][] table = Utilities.readMatrix(fileName);

@@ -1,7 +1,14 @@
 package org.example.simulation;
 
+import org.example.config.GridConfig;
 
-//Atributos y métodos relacionados a un pad individual
+/**
+ * Represents a single stimulation pad in the grid along with its geometric
+ * relationship to the rotation axis and the Bayesian probabilities tracked
+ * during the simulation. Row/column indices are immutable after construction
+ * so callers can treat the identifier and grid location as stable keys while
+ * freely mutating probabilities and displacement distance.
+ */
 public class Pad {
     private final int id;
     private final int row;
@@ -12,10 +19,29 @@ public class Pad {
     private double initialProb; //kflexion en la posición inicial (0 grados)
 
 
+    /**
+     * Creates a pad in the default grid using the provided radial distance.
+     *
+     * @param id              1-based pad identifier within the grid.
+     * @param radiusFromAxis  distance in centimeters from the rotation axis
+     *                        to the pad center.
+     */
     public Pad(int id, double radiusFromAxis) {
+        this(id, radiusFromAxis, GridConfig.defaultConfig());
+    }
+
+    /**
+     * Creates a pad using an explicit grid configuration.
+     *
+     * @param id             1-based pad identifier within the grid.
+     * @param radiusFromAxis distance in centimeters from the rotation axis
+     *                       to the pad center.
+     * @param gridConfig     grid layout reference used to derive row/column.
+     */
+    public Pad(int id, double radiusFromAxis, GridConfig gridConfig) {
         this.id = id;
-        this.col = (id - 1)/5;
-        this.row = (id - 1)%5;
+        this.col = (id - 1) / gridConfig.getRows();
+        this.row = (id - 1) % gridConfig.getRows();
         this.radiusFromAxis = radiusFromAxis;
         this.displacementDistance = 0;
         this.probability = 0;
@@ -52,7 +78,9 @@ public class Pad {
         this.probability = probability;
     }
 
-    //Asumimos que la probabilidad empieza siendo igual a la inicial
+    /**
+     * Sets the initial probability and aligns the current probability with it.
+     */
     public void setInitialProb(double initialProb) {
         this.initialProb = initialProb;
         this.probability = initialProb;
@@ -62,9 +90,10 @@ public class Pad {
         System.out.println("Pad ID | Row | Distance to Radius (cm)");
         System.out.println("-------------------------------------");
 
-        for (int id = 1; id <= 15; id++) {
-            Pad pad = new Pad(id,2.86);
-            int row = (id - 1) % 5;
+        GridConfig gridConfig = GridConfig.defaultConfig();
+        for (int id = 1; id <= gridConfig.getPadCount(); id++) {
+            Pad pad = new Pad(id,2.86, gridConfig);
+            int row = (id - 1) % gridConfig.getRows();
             System.out.printf("  %2d   |  %d  |        %.2f cm\n", pad.getId(), row, pad.getRadiusFromAxis());
         }
     }
