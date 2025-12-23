@@ -2,11 +2,10 @@ package org.example.simulation;
 
 import org.example.auxiliar.Utilities;
 
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.PrintWriter;
 import java.util.*;
-import java.util.function.BiConsumer;
+
+import org.example.io.ResultWriter;
+import org.example.model.BayesStepResult;
 import java.util.stream.Collectors;
 
 //Asigna probabilidades iniciales a los pads, gestiona la actualización del algoritmo
@@ -172,95 +171,33 @@ public class Simulation {
                 .collect(Collectors.toList());
     }
 
-    public void runStep(String subject, double angleDiff) {
+    public SimulationResult runStep(String subject, double angleDiff) {
         int N = pads.size();
-        String s = subject;
-        double[][] resultingMatrix = new double[N][5];
-        //resultingMatrix[i][0] para guardar el pad Id
-        //resultingMatrix[i][1] para guardar desplazamiento
-        //resultingMatrix[i][2] para guardar initial prob
-        //resultingMatrix[i][3] para guardar predicted probs
-        //resultingMatrix[i][4] para guardar corrected probs
-
-        for (Pad pad : pads) {
-            int rowPad = pad.getId() - 1;
-            resultingMatrix[rowPad][0] = pad.getId();
-            resultingMatrix[rowPad][1] = pad.getInitialProb();
-        }
+        Map<Integer, Double> predictedProbs = new HashMap<>();
 
         updateProbsAfterMovement(angleDiff);
-
-        System.out.println("Pad ID | Displacement");
-        System.out.println("----------------------------");
         for (Pad pad : pads) {
-            int rowPad = pad.getId() - 1;
-            resultingMatrix[rowPad][2] = pad.getDisplacementDistance();
-
-            System.out.printf("  %2d   |     %.2f\n", pad.getId(), pad.getDisplacementDistance());
-        }
-
-        System.out.println("Pad ID | Updated Probability after prediction phase");
-        System.out.println("----------------------------");
-        for (Pad pad : pads) {
-            int rowPad = pad.getId() - 1;
-            resultingMatrix[rowPad][3] = pad.getProbability();
-            System.out.printf("  %2d   |     %.8f\n", pad.getId(), pad.getProbability());
+            predictedProbs.put(pad.getId(), pad.getProbability());
         }
 
         obsModel.applyCorrectionPhase(pads, angleDiff);
-        System.out.println("Pad ID | Corrected Probability after correction phase");
-        System.out.println("----------------------------");
+
+        List<BayesStepResult> bayesStepResults = new ArrayList<>(N);
         for (Pad pad : pads) {
-            int rowPad = pad.getId() - 1;
-            resultingMatrix[rowPad][4] = pad.getProbability();
-
-            System.out.printf("  %2d   |     %.8f\n", pad.getId(), pad.getProbability());
+            double predictedProb = predictedProbs.getOrDefault(pad.getId(), 0.0);
+            BayesStepResult resultRow = new BayesStepResult(
+                    pad.getId(),
+                    pad.getInitialProb(),
+                    pad.getDisplacementDistance(),
+                    predictedProb,
+                    pad.getProbability()
+            );
+            bayesStepResults.add(resultRow);
         }
-
 
         List<Pad> top3Pads = selectPads(3);
-        System.out.println("Top 3 pads tras movimiento de: " + angleDiff + "º");
-        for (Pad pad : top3Pads) {
-            System.out.printf("Pad %d → prob=%.4f, disp=%.2fcm\n", pad.getId(), pad.getProbability(), pad.getDisplacementDistance());
-        }
 
-        writeResults(s, angleDiff, resultingMatrix, top3Pads);
-    }
-
-
-    private void writeResults(String subject, double angleDiff, double[][] resultingMatrix, List<Pad> top3Pads){
-        int N = pads.size();
-        String localFilename = String.format(Locale.US, "results_%s_angle_%.1f.csv", subject, angleDiff);
-        String externalPath = "C:\\Users\\alemo\\OneDrive\\Documentos\\CEU SAN PABLO\\QUINTO\\TFG\\Materiales\\Algoritmo";
-        String externalFilename = String.format(Locale.US, "%s\\results_%s_angle_%.1f.csv", externalPath, subject, angleDiff);
-        // Método auxiliar para escribir la matriz en un archivo dado
-
-        BiConsumer<String, String> writeCsv = (filename, header) -> {
-            try (PrintWriter pw = new PrintWriter(new FileWriter(filename))) {
-                pw.println("PadID,InitialProb,Displacement,PredictedProb,CorrectedProb");
-                for (int i = 0; i < N; i++) {
-                    int padId = (int) resultingMatrix[i][0];
-                    double initP = resultingMatrix[i][1];
-                    double disp = resultingMatrix[i][2];
-                    double pPred = resultingMatrix[i][3];
-                    double pPost = resultingMatrix[i][4];
-                    pw.printf(Locale.US, "%d,%.8f,%.8f,%.8f,%.8f%n",
-                            padId, initP, disp, pPred, pPost);
-                }
-                pw.println(); // línea en blanco
-                pw.println("TopPad1,TopPad2,TopPad3");
-                String[] topIds = {"", "", ""};
-                for (int j = 0; j < top3Pads.size() && j < 3; j++) {
-                    topIds[j] = String.valueOf(top3Pads.get(j).getId());
-                }
-                pw.printf("%s,%s,%s%n", topIds[0], topIds[1], topIds[2]);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        };
-
-        writeCsv.accept(localFilename, localFilename);
-        writeCsv.accept(externalFilename, externalFilename);
+        return new SimulationResult(subject, angleDiff, bayesStepResults, top3Pads);
     }
 
     public static void main(String[] args) {
@@ -268,6 +205,7 @@ public class Simulation {
         double movementThreshold = 1;
         double probMin = 0.05;
         double[] angles = {-90.0 ,10.0, 30.0, 45.0, 60.0, 90.0};
+        ResultWriter resultWriter = new ResultWriter();
 
         for (String sub : subjectNames) {
             System.out.println("\n============================================");
@@ -279,7 +217,8 @@ public class Simulation {
             for (double ang : angles) {
                 s.loadInitialProbs(sub);
                 System.out.printf("\n-- %s | Ángulo: %.1f° --\n", sub, ang);
-                s.runStep(sub,ang);
+                SimulationResult result = s.runStep(sub, ang);
+                resultWriter.writeResults(result);
             }
 
         }
