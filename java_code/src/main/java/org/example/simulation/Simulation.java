@@ -1,36 +1,35 @@
 package org.example.simulation;
 
 import org.example.auxiliar.Utilities;
-
-import java.util.*;
-
+import org.example.config.GridConfig;
 import org.example.io.ResultWriter;
 import org.example.model.BayesStepResult;
+
+import java.util.*;
 import java.util.stream.Collectors;
 
 //Asigna probabilidades iniciales a los pads, gestiona la actualización del algoritmo
 public class Simulation {
     private final List<Pad> pads;
+    private final GridConfig gridConfig;
     private final DisplacementModel disModel;
     private final ObservationModel obsModel;
     private final double movementThreshold;
     private final double probMin;
 
-    private static final int NUM_COLS = 3;
-    private static final int NUM_ROWS = 5;
-
 
     public Simulation(double movementThreshold, double probMin, String subject) {
+        this.gridConfig = GridConfig.defaultConfig();
         this.disModel = new DisplacementModel();
         this.obsModel = new ObservationModel();
         this.movementThreshold = movementThreshold;
         this.probMin = probMin;
 
         this.pads = new ArrayList<>();
-        for (int id = 1; id <= NUM_COLS * NUM_ROWS; id++) {
-            int padCol = (id - 1) / NUM_ROWS;
+        for (int id = 1; id <= gridConfig.getPadCount(); id++) {
+            int padCol = (id - 1) / gridConfig.getRows();
             double radius = calculateRadius(padCol);
-            pads.add(new Pad(id, radius));
+            pads.add(new Pad(id, radius, gridConfig));
 
         }
         loadInitialProbs(subject);

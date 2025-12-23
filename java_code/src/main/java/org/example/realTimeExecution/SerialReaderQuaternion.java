@@ -2,6 +2,7 @@ package org.example.realTimeExecution;
 
 import com.fazecast.jSerialComm.SerialPort;
 import org.example.auxiliar.Utilities;
+import org.example.config.RuntimeConfig;
 
 import java.io.BufferedWriter;
 import java.io.FileWriter;
@@ -19,6 +20,7 @@ public class SerialReaderQuaternion implements Runnable{
     private String portName;
     private List<Quaternion> data;
     private Quaternion meanQuaternion;
+    private final int readDurationMillis;
 
     /**
      * Construye un lector asociado a un puerto serie concreto y configura los parámetros básicos.
@@ -32,6 +34,7 @@ public class SerialReaderQuaternion implements Runnable{
         this.serialPort.setComPortTimeouts(SerialPort.TIMEOUT_READ_SEMI_BLOCKING, 1000, 0);
         this.data = new ArrayList<Quaternion>();
         this.meanQuaternion = new Quaternion();
+        this.readDurationMillis = RuntimeConfig.defaultConfig().getImuReadDurationMillis();
     }
 
     /**
@@ -253,7 +256,7 @@ public class SerialReaderQuaternion implements Runnable{
     //sobreescribo el método que ejecuta el hilo
     @Override
     public void run() {
-        readData(7000);
+        readData(readDurationMillis);
         if (!data.isEmpty()) {
             calculateMeanQuaternion();
 
@@ -280,9 +283,10 @@ public class SerialReaderQuaternion implements Runnable{
     }
 
     public static void main(String[] args) {
-        String folderPath = "C:/Users/alemo/IdeaProjects/getIMU/data/";
-        SerialReaderQuaternion handReader = new SerialReaderQuaternion("COM10");
-        SerialReaderQuaternion armReader = new SerialReaderQuaternion("COM13");
+        RuntimeConfig runtimeConfig = RuntimeConfig.defaultConfig();
+        String folderPath = runtimeConfig.getImuDataFolder();
+        SerialReaderQuaternion handReader = new SerialReaderQuaternion(runtimeConfig.getHandImuPort());
+        SerialReaderQuaternion armReader = new SerialReaderQuaternion(runtimeConfig.getArmImuPort());
 
 
         if (armReader.openPort() && handReader.openPort()) {
@@ -303,7 +307,7 @@ public class SerialReaderQuaternion implements Runnable{
             Quaternion Qglobal2 = armReader.getMeanQuartenion();
 
             saveData( "Initial_position.txt", handReader, armReader, Qglobal1, Qglobal2, null, null);
-            saveDataToPlot("C:\\Users\\alemo\\IdeaProjects\\getIMU\\initial_angles.csv", handReader, armReader);
+            saveDataToPlot(runtimeConfig.getInitialAnglesPlotFile(), handReader, armReader);
 
             System.out.println("Mean quaternion for the initial hand position:");
             System.out.printf("W: %.5f, X: %.5f, Y: %.5f, Z: %.5f\n",
