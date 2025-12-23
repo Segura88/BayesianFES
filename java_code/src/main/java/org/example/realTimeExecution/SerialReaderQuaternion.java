@@ -14,6 +14,8 @@ import java.util.Scanner;
 /**
  * Hilo de lectura que captura cuaterniones de un sensor IMU a través de un puerto serie.
  * Además permite calcular medias y guardar las muestras en diferentes formatos.
+ * Mantiene los datos en memoria hasta que el llamador los consulta o los limpia
+ * con {@link #clearData()}.
  */
 public class SerialReaderQuaternion implements Runnable{
     private SerialPort serialPort;
@@ -54,6 +56,8 @@ public class SerialReaderQuaternion implements Runnable{
 
     /**
      * Lee datos en formato de cuaternión durante un tiempo determinado y los almacena en memoria.
+     *
+     * Precondición: el puerto serie debe estar abierto mediante {@link #openPort()}.
      *
      * @param durationMillis duración de la captura en milisegundos.
      */
@@ -99,6 +103,10 @@ public class SerialReaderQuaternion implements Runnable{
 
     /**
      * Calcula el cuaternión medio de todas las muestras recibidas y lo almacena internamente.
+     *
+     * Postcondición: el valor calculado queda accesible mediante
+     * {@link #getMeanQuartenion()} hasta que se invoque {@link #clearData()} o
+     * se lean nuevas muestras.
      */
     public void calculateMeanQuaternion() {
         int size = data.size();
@@ -253,7 +261,11 @@ public class SerialReaderQuaternion implements Runnable{
         return meanQuaternion;
     }
 
-    //sobreescribo el método que ejecuta el hilo
+    /**
+     * Captura muestras durante el tiempo configurado y actualiza el cuaternión
+     * medio. Debe invocarse tras {@link #openPort()} para garantizar que el
+     * puerto esté listo.
+     */
     @Override
     public void run() {
         readData(readDurationMillis);

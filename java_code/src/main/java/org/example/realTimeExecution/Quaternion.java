@@ -2,7 +2,8 @@ package org.example.realTimeExecution;
 
 /**
  * Representa un cuaternión y ofrece operaciones básicas para combinar orientaciones
- * o convertirlas a ángulos de Euler.
+ * o convertirlas a ángulos de Euler. Las operaciones retornan nuevas instancias
+ * y no modifican el objeto original.
  */
 public class Quaternion {
 
@@ -58,7 +59,9 @@ public class Quaternion {
     }
 
     /**
-     * Convierte el cuaternión en ángulos de Euler expresados en grados (roll, pitch, yaw).
+     * Convierte el cuaternión en ángulos de Euler expresados en grados (roll,
+     * pitch, yaw) utilizando la convención de rotaciones aplicada en el resto
+     * del sistema.
      */
     public Coord toEulerAngles(){
         double roll, pitch, yaw;

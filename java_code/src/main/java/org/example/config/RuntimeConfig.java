@@ -2,6 +2,11 @@ package org.example.config;
 
 /**
  * Holds default runtime parameters for real-time execution and data capture.
+ * <p>
+ * All fields are immutable to avoid accidental drift between the stimulation
+ * loop and the IMU sampling routines. The defaults mirror the current values
+ * used in the real-time workflow so behavior remains unchanged unless an
+ * explicit configuration instance is provided by the caller.
  */
 public final class RuntimeConfig {
     private final String handImuPort;
@@ -97,34 +102,74 @@ public final class RuntimeConfig {
         return fesPort;
     }
 
+    /**
+     * First channel index stimulated in the sweep.
+     *
+     * @return inclusive starting channel
+     */
     public int getChannelPulseStart() {
         return channelPulseStart;
     }
 
+    /**
+     * Last channel index stimulated in the sweep.
+     *
+     * @return inclusive ending channel
+     */
     public int getChannelPulseEnd() {
         return channelPulseEnd;
     }
 
+    /**
+     * First index of the loop that iterates over stimulation channels for data capture.
+     *
+     * @return inclusive starting index for the stimulation loop
+     */
     public int getStimulationLoopStartIndex() {
         return stimulationLoopStartIndex;
     }
 
+    /**
+     * Last index of the loop that iterates over stimulation channels for data capture.
+     *
+     * @return inclusive ending index for the stimulation loop
+     */
     public int getStimulationLoopEndIndex() {
         return stimulationLoopEndIndex;
     }
 
+    /**
+     * Number of positions in the stimulation mask that are iterated when applying the channel window.
+     *
+     * @return mask size in positions
+     */
     public int getMaskLength() {
         return maskLength;
     }
 
+    /**
+     * Delay applied before starting stimulation, matching the existing timing assumptions.
+     *
+     * @return delay in milliseconds prior to triggering the stimulator
+     */
     public int getStimulationDelayMillis() {
         return stimulationDelayMillis;
     }
 
+    /**
+     * Delay applied after stimulation to allow the subject to rest.
+     *
+     * @return rest interval in milliseconds between channel iterations
+     */
     public int getRestDelayMillis() {
         return restDelayMillis;
     }
 
+    /**
+     * Duration of IMU sampling during each calibration or stimulation window.
+     *
+     * @return sampling duration in milliseconds
+     */
     public int getImuReadDurationMillis() {
         return imuReadDurationMillis;
     }

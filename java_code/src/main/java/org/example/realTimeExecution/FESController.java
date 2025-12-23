@@ -8,7 +8,8 @@ import java.nio.charset.StandardCharsets;
 /**
  * Gestiona la comunicación serie con el dispositivo de estimulación funcional (FES).
  * Permite abrir la conexión, enviar comandos de configuración y controlar el inicio o
- * parada de la estimulación sobre distintos canales.
+ * parada de la estimulación sobre distintos canales sin alterar el protocolo empleado
+ * por la implementación original.
  */
 public class FESController {
     private SerialPort serialPort;
@@ -27,6 +28,8 @@ public class FESController {
 
     /**
      * Abre el puerto configurando los parámetros de comunicación.
+     *
+     * Precondición: {@link #portName} debe apuntar al dispositivo FES correcto.
      *
      * @return {@code true} si el puerto se abre correctamente; {@code false} en caso contrario.
      */
@@ -79,6 +82,8 @@ public class FESController {
 
     /**
      * Inicia la estimulación sobre los canales activos de la máscara actual.
+     * Requiere que el puerto esté abierto y una máscara válida enviada con
+     * {@link #setMask(int[][])}.
      */
     public void startStimulation() {
         String command = "s\r";
@@ -105,6 +110,8 @@ public class FESController {
 
     /**
      * Cierra el puerto serie si está abierto.
+     *
+     * Postcondición: los comandos posteriores requerirán una nueva llamada a {@link #connect()}.
      */
     public void disconnect() {
         if (serialPort != null && serialPort.isOpen()) {

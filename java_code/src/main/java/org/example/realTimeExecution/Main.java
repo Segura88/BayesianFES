@@ -11,6 +11,14 @@ import java.io.IOException;
  * Ejecuta el flujo completo de calibración y estimulación en tiempo real:
  * abre los puertos de los sensores y del estimulador, registra las orientaciones
  * iniciales, activa cada canal y guarda las mediciones antes y durante la estimulación.
+ * Mantiene el mismo orden de operaciones y tiempos de espera definidos en la
+ * implementación original.
+ *
+ * Precondiciones operativas:
+ * <ul>
+ *     <li>Los puertos definidos en {@link RuntimeConfig} deben existir y estar libres.</li>
+ *     <li>El usuario proporciona por consola frecuencia, ancho de pulso e intensidad válidos.</li>
+ * </ul>
  */
 public class Main {
     /**

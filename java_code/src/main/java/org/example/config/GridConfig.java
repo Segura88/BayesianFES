@@ -2,6 +2,10 @@ package org.example.config;
 
 /**
  * Centralizes the grid layout used to index and arrange pads.
+ * <p>
+ * The configuration is immutable so the total pad count and the mapping between
+ * row/column positions and pad identifiers remains stable throughout a
+ * simulation run.
  */
 public final class GridConfig {
     private final int rows;
@@ -21,10 +25,20 @@ public final class GridConfig {
         return new GridConfig(5, 3);
     }
 
+    /**
+     * Number of rows in the pad grid.
+     *
+     * @return configured row count
+     */
     public int getRows() {
         return rows;
     }
 
+    /**
+     * Number of columns in the pad grid.
+     *
+     * @return configured column count
+     */
     public int getCols() {
         return cols;
     }

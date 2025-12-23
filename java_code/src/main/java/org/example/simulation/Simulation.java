@@ -8,7 +8,12 @@ import org.example.model.BayesStepResult;
 import java.util.*;
 import java.util.stream.Collectors;
 
-//Asigna probabilidades iniciales a los pads, gestiona la actualización del algoritmo
+/**
+ * Runs a Bayesian update over a fixed grid of pads combining displacement and
+ * observation models. The class maintains pad state across steps and exposes
+ * the per-step results required to persist the CSV output without handling IO
+ * directly.
+ */
 public class Simulation {
     private final List<Pad> pads;
     private final GridConfig gridConfig;
@@ -18,6 +23,16 @@ public class Simulation {
     private final double probMin;
 
 
+    /**
+     * Builds the simulation using the default grid and loads subject-specific
+     * priors and observation tables.
+     *
+     * @param movementThreshold threshold (cm) to determine which pads belong
+     *                          to the displacement region of the moved pad.
+     * @param probMin           minimum probability for a pad to be considered
+     *                          when selecting the top candidates.
+     * @param subject           subject identifier used to load CSV inputs.
+     */
     public Simulation(double movementThreshold, double probMin, String subject) {
         this.gridConfig = GridConfig.defaultConfig();
         this.disModel = new DisplacementModel();
@@ -37,6 +52,10 @@ public class Simulation {
 
     }
 
+    /**
+     * Computes the radial distance for pads in a column based on the assumed
+     * forearm radius and offset detailed in the original implementation.
+     */
     public double calculateRadius(int col) {
         double forearmCircle = 18.0;
         double radiusCenter = forearmCircle / (2 * Math.PI); //2.86 cm
@@ -51,6 +70,10 @@ public class Simulation {
 
     }
 
+    /**
+     * Loads the initial probabilities for every pad from the subject-specific
+     * CSV and seeds both the initial and current probabilities.
+     */
     public void loadInitialProbs(String subject) {
         String fileName = "initialK_values_" + subject + ".csv";
         List<Double> initialProbs = Utilities.readProbabilities(fileName);
@@ -61,6 +84,16 @@ public class Simulation {
     }
 
 
+    /**
+     * Calculates the set of pads whose centers fall within the movement
+     * threshold of the pad displaced by {@code angleDiff}.
+     *
+     * @param pad               pad used as the displacement origin.
+     * @param angleDiff         angular displacement in degrees.
+     * @param movementThreshold distance (cm) to include neighbors.
+     * @return list of pads within the region; returns the pad itself if none
+     * meet the threshold.
+     */
     public List<Pad> getRegion(Pad pad, double angleDiff, double movementThreshold) {
         double distance = pad.getDisplacementDistance();  // coge la distancia que se ha movido el pad en el que estamos
         double spacing = 1.5; //distancia de centro de un pad al centro de otro (1cm ancho pad + 0.5cm entre pads)
@@ -90,6 +123,13 @@ public class Simulation {
         return region;
     }
 
+    /**
+     * Applies the displacement model to propagate prior probabilities across
+     * the grid after a movement angle.
+     *
+     * @param angleDiff angular displacement in degrees used to update pad
+     *                  displacement distances and redistribute probabilities.
+     */
     public void updateProbsAfterMovement(double angleDiff) {
         int N = pads.size();
 
@@ -137,6 +177,10 @@ public class Simulation {
 
     //Filtra los pads que superen un umbral mínimo de probabilidad
     //Sobre ese conjuento, caclulo el baricentro (centro de masa) y selecciono los N pads más cercanos al centroide
+    /**
+     * Selects the top-N pads whose probability exceeds {@code probMin} and are
+     * closest to the probability-weighted centroid.
+     */
     public List<Pad> selectPads(int topN) {
 
         List<Pad> filteredPads = pads.stream() //inicia flujo
@@ -170,6 +214,22 @@ public class Simulation {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Executes a full Bayesian step: predicts probabilities using the
+     * displacement model, stores the predicted vector, applies the observation
+     * correction, and returns the data required to persist results.
+     *
+     * Preconditions:
+     * <ul>
+     *     <li>{@link #loadInitialProbs(String)} and {@link ObservationModel#loadkTable(String)} have populated pad priors and Ks.</li>
+     *     <li>{@code angleDiff} represents the current movement between measurements.</li>
+     * </ul>
+     *
+     * @param subject   subject identifier already used to load priors.
+     * @param angleDiff movement angle in degrees for this step.
+     * @return snapshot containing per-pad predicted/corrected probabilities and
+     *         the highest-probability pads.
+     */
     public SimulationResult runStep(String subject, double angleDiff) {
         int N = pads.size();
         Map<Integer, Double> predictedProbs = new HashMap<>();
